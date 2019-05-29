@@ -6,18 +6,19 @@ import (
 	"sync"
 
 	"github.com/czh0526/demo/agent"
-	console "github.com/czh0526/demo/apps/console"
 	"github.com/czh0526/demo/modules/chat"
+	ipfslog "github.com/ipfs/go-log"
 	libp2p "github.com/libp2p/go-libp2p"
 	host "github.com/libp2p/go-libp2p-host"
 	kad_dht "github.com/libp2p/go-libp2p-kad-dht"
 	pstore "github.com/libp2p/go-libp2p-peerstore"
+	logging "github.com/whyrusleeping/go-logging"
 )
 
 func init() {
-	//ipfslog.SetAllLoggers(logging.DEBUG)
-	//ipfslog.SetLogLevel("net/identify", "ERROR")
-	//ipfslog.SetLogLevel("addrutil", "ERROR")
+	ipfslog.SetAllLoggers(logging.ERROR)
+	ipfslog.SetLogLevel("rpc", "DEBUG")
+	ipfslog.SetLogLevel("chat", "DEBUG")
 }
 
 func main() {
@@ -35,25 +36,20 @@ func main() {
 	fmt.Printf("host listening on: %s@%s \n", host.ID(), host.Network().ListenAddresses())
 
 	// 启动 Agent
-	agent := agent.NewAgent(ctx, host, dht)
+	agent, err := agent.NewAgent(ctx, host, dht, cfg)
+	if err != nil {
+		panic(err)
+	}
 	fmt.Printf("agent <%s> started ... \n", host.ID())
 
 	// 启动 Chat
 	chat := chat.New(ctx, []string{"chat room 1"}, agent)
-
-	// 启动 Console
-	consoleCfg := console.Config{}
-	console, err := console.New(consoleCfg, chat)
-	if err != nil {
-		panic(err)
-	}
-	console.Welcome()
-	go console.Interactive()
+	chat.RegisterService(agent)
 
 	select {}
 }
 
-func makeHostAndDHT(ctx context.Context, cfg Config) (host.Host, *kad_dht.IpfsDHT, error) {
+func makeHostAndDHT(ctx context.Context, cfg *agent.Config) (host.Host, *kad_dht.IpfsDHT, error) {
 
 	// 构建 Host
 	host, err := libp2p.New(ctx, libp2p.Identity(cfg.PrivKey), libp2p.ListenAddrs(cfg.ListenAddrs...))
